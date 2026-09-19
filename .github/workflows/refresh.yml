@@ -1,0 +1,102 @@
+name: refresh-org-map
+
+on:
+  schedule:
+    # 00:40 Asia/Seoul (UTC+9) == 15:40 UTC the previous day — after the
+    # private repository's own refresh, so this always reflects that run.
+    - cron: "40 15 * * *"
+  workflow_dispatch: {}
+
+# Read-only by default; each job below raises it only where it actually needs
+# more (the generate job never needs write; the commit job needs write and
+# nothing else).
+permissions:
+  contents: read
+
+# This workflow commits and pushes, so two overlapping runs would race on the
+# same branch. Queue duplicates instead of cancelling: cancelling mid-push can
+# leave the run half-finished, which is worse than waiting.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fetches repo data and renders the artifacts. Holds USER_READ_TOKEN,
+  # ORG_READ_TOKEN and MASK_SALT, and runs third-party dependency code
+  # (sharp, gifenc), but never has push access to this repository — even if a
+  # dependency were compromised, this job cannot commit or alter git history.
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job only reads and renders; it never commits, so it must
+          # never hold a git credential that could push.
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Generate organization map
+        env:
+          USER_READ_TOKEN: ${{ secrets.USER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          MASK_SALT: ${{ secrets.MASK_SALT || 'ks-sss-ai-cartography-zero-knowledge-salt' }}
+        run: npm run generate
+
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: org-map-artifacts
+          path: |
+            org-map.svg
+            org-map.gif
+            history/
+          retention-days: 1
+
+  # Commits and pushes the artifacts the generate job produced. Never sees
+  # USER_READ_TOKEN, ORG_READ_TOKEN or MASK_SALT, so a compromise of this
+  # job's steps cannot exfiltrate them — the worst it can do is push.
+  commit:
+    needs: generate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download generated artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: org-map-artifacts
+
+      - name: Commit and push changes
+        run: |
+          if [ -z "$(git status --porcelain -- org-map.svg org-map.gif history)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add org-map.svg org-map.gif history
+
+          date="$(date -u +%F)"
+          git commit -m "chore: refresh org map for ${date}"
+          git push

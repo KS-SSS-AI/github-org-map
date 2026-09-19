@@ -1,0 +1,24 @@
+{
+  "name": "github-org-map",
+  "version": "1.0.0",
+  "description": "Generates a dated SVG map of a GitHub account/org's repositories, keeps a history, and assembles a GIF of how it changed over time. Private repository names are masked before anything is written.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "generate": "tsx scripts/generate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && tsx --test test/mask.test.ts test/github.test.ts test/generate.test.ts"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

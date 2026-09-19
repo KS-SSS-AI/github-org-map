@@ -1,0 +1,10 @@
+{
+  "account": "KS-SSS-AI",
+  "timezone": "Asia/Seoul",
+  "gif": {
+    "frameMs": 900,
+    "lastFrameMs": 2500,
+    "maxFrames": 60
+  },
+  "publicExcludeHashes": []
+}
