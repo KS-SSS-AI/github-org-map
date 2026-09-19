@@ -369,7 +369,7 @@ export function buildSvg({
 
   <!-- Footer Specification Bar -->
   <text x="${width / 2}" y="${height - 14}" fill="#64748b" font-family="${FONT_STACK}" font-size="11" font-weight="500" text-anchor="middle">
-    Zero-Knowledge SHA-256 Masked Telemetry · Automated Daily GitOps Cartography · KS-GG-AI
+    Zero-Knowledge SHA-256 Masked Telemetry · Automated Daily GitOps Cartography · ${escapeXml(account)}
   </text>
 </svg>
 `;
